@@ -1,0 +1,106 @@
+# fastlane/Fastfile — Mazola Effect
+# Automacao de build e upload para App Store Connect.
+#
+# Setup:
+#   brew install fastlane
+#   cd /path/ao/MazolaApple
+#   fastlane init
+#
+# Lanes principais:
+#   fastlane beta      -> builda beta e faz upload no TestFlight
+#   fastlane release   -> builda release e faz upload na App Store
+#   fastlane screenshots -> gera screenshots via UI Tests
+
+default_platform(:ios)
+
+APP_ID      = "com.superaplicativos.mazolaeffect"
+SCHEME      = "MazolaEffect"
+PROJECT     = "MazolaEffect.xcodeproj"
+
+platform :ios do
+
+  # ---------- helpers ----------
+
+  def bump_version(type: :patch)
+    current = get_version_number(target: SCHEME, xcodeproj: PROJECT)
+    new_version = bump_version_number(
+      xcodeproj: PROJECT,
+      version_number: current
+    )
+    new_version
+  end
+
+  # ---------- lanes ----------
+
+  desc "Builda em Debug e roda em device conectado"
+  lane :dev do
+    build_app(
+      project: PROJECT,
+      scheme: SCHEME,
+      configuration: "Debug",
+      export_method: "development"
+    )
+  end
+
+  desc "Builda release e faz upload no TestFlight"
+  lane :beta do
+    increment_build_number(
+      xcodeproj: PROJECT,
+      build_number: "#{current_build_number + 1}"
+    )
+
+    build_app(
+      project: PROJECT,
+      scheme: SCHEME,
+      configuration: "Release",
+      export_method: "app-store",
+      include_bitcode: false,
+      include_symbols: true
+    )
+
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Builda release e faz upload na App Store Connect"
+  lane :release do
+    increment_build_number(
+      xcodeproj: PROJECT,
+      build_number: "#{current_build_number + 1}"
+    )
+
+    build_app(
+      project: PROJECT,
+      scheme: SCHEME,
+      configuration: "Release",
+      export_method: "app-store",
+      include_bitcode: false,
+      include_symbols: true
+    )
+
+    upload_to_app_store(
+      app_identifier: APP_ID,
+      skip_screenshots: true,
+      skip_metadata: false,
+      metadata_path: "./fastlane/metadata",
+      submit_for_review: false
+    )
+  end
+
+  desc "Gera screenshots via UI Tests"
+  lane :screenshots do
+    capture_screenshots(
+      project: PROJECT,
+      scheme: "#{SCHEME}UITests",
+      devices: ["iPhone 15 Pro Max", "iPhone 14 Plus", "iPad Pro (12.9-inch) (6th generation)"],
+      languages: ["pt-BR"]
+    )
+  end
+
+  desc "Frame e compose screenshots com texto"
+  lane :frame do
+    frame_screenshots(white: true)
+  end
+
+end
